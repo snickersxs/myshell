@@ -1,4 +1,4 @@
-//temp comm
+
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
@@ -14,8 +14,164 @@
 #define CREATE_FLAGS (O_WRONLY | O_CREAT | O_APPEND)
 
 #define CREATE_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
-
 #define MAX_LINE 80
+#define MAX 255
+
+struct Node
+{
+    char inquote[MAX];
+    char outquote[MAX];
+    struct Node *next;
+};
+typedef struct Node NodeAlias;
+NodeAlias *aliasHead = NULL;
+
+struct pidlist
+{
+    pid_t pid;
+    struct pidlist *next;
+};
+typedef struct pidlist NodePidList;
+NodePidList *pidlistHead = NULL;
+
+void pushAlias(NodeAlias **head_ref, char inquote[255], char outquote[255])
+{
+    /* 1. allocate node */
+    NodeAlias *new_node = (NodeAlias *)malloc(sizeof(NodeAlias));
+
+    NodeAlias *last = *head_ref; /* used in step 5*/
+
+    /* 2. put in the data  */
+    strcpy(new_node->inquote, inquote);
+    strcpy(new_node->outquote, outquote);
+
+    /* 3. This new node is going to be the last node, so make next of 
+          it as NULL*/
+    new_node->next = NULL;
+
+    /* 4. If the Linked List is empty, then make the new node as head */
+    if (*head_ref == NULL)
+    {
+        *head_ref = new_node;
+        return;
+    }
+
+    /* 5. Else traverse till the last node */
+    while (last->next != NULL)
+        last = last->next;
+
+    /* 6. Change the next of last node */
+    last->next = new_node;
+    return;
+}
+
+void pushpidlist(NodePidList **head_ref, pid_t a)
+{
+    /* 1. allocate node */
+    NodePidList *new_node = (NodeAlias *)malloc(sizeof(NodeAlias));
+
+    NodePidList *last = *head_ref; /* used in step 5*/
+
+    /* 2. put in the data  */
+    new_node->pid=a;
+
+    /* 3. This new node is going to be the last node, so make next of 
+          it as NULL*/
+    new_node->next = NULL;
+
+    /* 4. If the Linked List is empty, then make the new node as head */
+    if (*head_ref == NULL)
+    {
+        *head_ref = new_node;
+        return;
+    }
+
+    /* 5. Else traverse till the last node */
+    while (last->next != NULL)
+        last = last->next;
+
+    /* 6. Change the next of last node */
+    last->next = new_node;
+    return;
+}
+
+void deleteAlias(NodeAlias **head_ref, char key[255])
+{
+    // Store head node
+    NodeAlias *temp = *head_ref, *prev;
+
+    // If head node itself holds the key to be deleted
+    if (temp != NULL && !strcmp(temp->outquote, key))
+    {
+        *head_ref = temp->next; // Changed head
+        free(temp);             // free old head
+        return;
+    }
+
+    while (temp != NULL && strcmp(temp->outquote, key))
+    {
+        prev = temp;
+        temp = temp->next;
+    }
+
+    // If key was not present in linked list
+    if (temp == NULL)
+        return;
+
+    // Unlink the node from linked list
+    prev->next = temp->next;
+
+    free(temp); // Free memory
+}
+
+void deletepidlist(NodePidList **head_ref, pid_t a)
+{
+    // Store head node
+    NodePidList *temp = *head_ref, *prev;
+
+    // If head node itself holds the key to be deleted
+    if (temp != NULL && temp->pid!=a)
+    {
+        *head_ref = temp->next; // Changed head
+        free(temp);             // free old head
+        return;
+    }
+
+    while (temp != NULL && temp->pid==a)
+    {
+        prev = temp;
+        temp = temp->next;
+    }
+
+    // If key was not present in linked list
+    if (temp == NULL)
+        return;
+
+    // Unlink the node from linked list
+    prev->next = temp->next;
+
+    free(temp); // Free memory
+}
+
+void printList(NodeAlias **node)
+{
+    NodeAlias *tempNode = *node;
+    while (tempNode != NULL)
+    {
+        printf("\nFake: %s Real: %s\n", tempNode->outquote, tempNode->inquote);
+        tempNode = tempNode->next;
+    }
+}
+
+void printpidlist(NodePidList **node)
+{
+    NodePidList *tempNode = *node;
+    while (tempNode != NULL)
+    {
+        printf("\nPid:%ld\n", (long)tempNode->pid);
+        tempNode = tempNode->next;
+    }
+}
 
 void setup(char inputBuffer[], char *args[], int *background)
 {
@@ -79,8 +235,8 @@ void setup(char inputBuffer[], char *args[], int *background)
     }                /* end of for */
     args[ct] = NULL; /* just in case the input line was > 80 */
 
-    //for (i = 0; i <= ct; i++)
-    //printf("args %d = %s\n",i,args[i]);
+    // for (i = 0; i <= ct; i++)
+    //     printf("args %d = %s\n", i, args[i]);
 }
 
 void getpath(char *args[], char *envs[], char *path)
@@ -175,6 +331,7 @@ void execfunc(int background, char path[], char *args[])
                 continue;
             }
         }
+
         if (strcmp(path, "") == 0)
         {
             printf("Please enter valid command\n");
@@ -196,15 +353,23 @@ void execfunc(int background, char path[], char *args[])
     else
     {
         //TODO eger background 1 se childpidleri linkedliste at.
-        if (background == 0)
+        if (background == 0){ 
             waitpid(childpid, NULL, 0);
-        else
-            waitpid(childpid, NULL, WNOHANG);
+        }
+
+        else{
+             waitpid(childpid, NULL, WNOHANG);
+             pushpidlist(&pidlistHead,childpid);
+             printpidlist(&pidlistHead);
+        }
+
+
     }
 }
 
 int main(void)
 {
+
     int ikk = 0;
     char path1[50];
     char argsfun1[50];
@@ -226,18 +391,100 @@ int main(void)
 
     while (1)
     {
-
         fflush(stdout);
         background = 0;
         printf("myshell: ");
         fflush(stdout);
         setup(inputBuffer, args, &background);
 
-        if (args[0] == NULL)
+        for (int ckz = 0; args[ckz] != NULL; ckz++)
         {
-            printf("Please enter a value.\n");
-            continue;
+            if (strcmp(args[ckz], "alias") == 0)
+            {
+                char *subString;
+                char argnew[50];
+                argnew[0] = '\0';
+                int k = 1;
+                int j = 1;
+
+                while (args[k] != NULL)
+                {
+                    if (strstr(args[k], "\"") != 0)
+                    {
+                        strcat(argnew, args[k]);
+                        strcat(argnew, " ");
+                        j++;
+                    }
+                    k++;
+                }
+                subString = strtok(argnew, "\"");
+                pushAlias(&aliasHead, subString, args[j]);
+                continue;
+            }
+
+            if (strcmp(args[ckz], "unalias") == 0)
+            {
+                deleteAlias(&aliasHead, args[ckz + 1]);
+                continue;
+            }
+
+            NodeAlias *tempalias = aliasHead;
+            int kk;
+            
+
+            while (tempalias!= NULL)
+            {
+                kk=0;
+                if (strcmp(args[kk], tempalias->outquote) == 0)
+                {
+                    
+                    strcpy(args[kk], tempalias->inquote);
+                    char str[100];
+                    memset(str,'\0',sizeof(str));
+                    strcpy(str, args[kk]);
+                    char splitStrings[20][20];
+                    int j; 
+                    int cnt;
+                    j = 0;
+                    cnt = 0;
+                    for (int i = 0; i <= (strlen(str)); i++)
+                    {
+                        // if space or NULL found, assign NULL into splitStrings[cnt]
+                        if (str[i] == ' ' || str[i] == '\0')
+                        {
+                            splitStrings[cnt][j] = '\0';
+                            cnt++; //for next word
+                            j = 0; //for next word, init index to 0
+                        }
+                        else
+                        {
+                            splitStrings[cnt][j] = str[i];
+                            j++;
+                        }
+                    }
+                    int il;
+                    for (il=0;il<cnt;il++)
+                    {   
+                        args[il]=malloc(sizeof(char*)*strlen(splitStrings[il]));
+                        strcpy(args[il], splitStrings[il]);
+                        
+                    }
+                    args[il]=NULL;
+                    continue;
+                }
+                kk++;
+                tempalias = tempalias->next;
+
+            }
+
+            if (args[0] == NULL)
+            {
+                printf("Please enter a value.\n");
+                continue;
+            }
         }
+
+
         getpath(args, array, path1);
         execfunc(background, path1, args);
     }
